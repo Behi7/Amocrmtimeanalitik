@@ -1,0 +1,174 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+generator client {
+  provider = "prisma-client-js"
+}
+model Account {
+  id                  Int       @id @default(autoincrement())
+  subdomain           String    @db.Text
+  externalAccountId   BigInt?   @map("external_account_id") @db.BigInt
+  baseDomain          String    @default("amocrm.ru") @map("base_domain") @db.Text
+  encryptedToken      String?   @map("encrypted_token") @db.Text
+  tokenExpiresAt      DateTime? @map("token_expires_at") @db.Timestamptz()
+  tokenStatus         String    @default("active") @map("token_status") @db.Text
+  subscriptionStatus  String    @default("active") @map("subscription_status") @db.Text
+  status              String    @default("connected") @db.Text
+  timezone            String    @default("UTC") @db.Text
+  lastSyncedAt        DateTime? @map("last_synced_at") @db.Timestamptz()
+  backfillStatus      String    @default("pending") @map("backfill_status") @db.Text
+  backfillError       String?   @map("backfill_error") @db.Text
+  backfillErrorAt     DateTime? @map("backfill_error_at") @db.Timestamptz()
+  backfillCursor      Json?     @map("backfill_cursor") @db.JsonB
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  users User[]
+  pipelines Pipeline[]
+  leads Lead[]
+  tags Tag[]
+  notifications Notification[]
+  processedCrmEvents ProcessedCrmEvent[]
+  leadStageSkips LeadStageSkip[]
+  @@map("accounts")
+}
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique @db.Text
+  passwordHash String   @map("password_hash") @db.Text
+  role         String   @db.Text
+  accountId    Int?     @unique @map("account_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  account Account? @relation(fields: [accountId], references: [id])
+  refreshTokens RefreshToken[]
+  @@map("users")
+}
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  tokenHash String   @unique @map("token_hash") @db.Text
+  expiresAt DateTime @map("expires_at") @db.Timestamptz()
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId]) @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+model Pipeline {
+  id         Int      @id @default(autoincrement())
+  accountId  Int      @map("account_id")
+  externalId BigInt   @map("external_id") @db.BigInt
+  name       String   @db.Text
+  isArchived Boolean  @default(false) @map("is_archived")
+  account Account @relation(fields: [accountId], references: [id])
+  stages Stage[]
+  leads Lead[]
+  @@unique([accountId, externalId])
+  @@map("pipelines")
+}
+model Stage {
+  id         Int      @id @default(autoincrement())
+  pipelineId Int      @map("pipeline_id")
+  externalId BigInt   @map("external_id") @db.BigInt
+  name       String   @db.Text
+  sortOrder  Int?     @map("sort_order")
+  isArchived Boolean  @default(false) @map("is_archived")
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id])
+  leadStageHistory LeadStageHistory[]
+  @@unique([pipelineId, externalId])
+  @@map("stages")
+}
+model Lead {
+  id             Int       @id @default(autoincrement())
+  accountId      Int       @map("account_id")
+  externalId     BigInt    @map("external_id") @db.BigInt
+  name           String?   @db.Text
+  pipelineId     Int?      @map("pipeline_id")
+  currentStageId Int?      @map("current_stage_id")
+  status         String    @default("open") @db.Text
+  price          Decimal?  @db.Decimal(18,2)
+  crmCreatedAt   DateTime  @map("crm_created_at") @db.Timestamptz()
+  crmClosedAt    DateTime? @map("crm_closed_at") @db.Timestamptz()
+  updatedAt      DateTime  @map("updated_at") @db.Timestamptz()
+  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz()
+  account Account @relation(fields: [accountId], references: [id])
+  pipeline Pipeline? @relation(fields: [pipelineId], references: [id])
+  currentStage Stage? @relation(fields: [currentStageId], references: [id])
+  leadStageHistory LeadStageHistory[]
+  leadTags LeadTag[]
+  leadStageSkips LeadStageSkip[]
+  @@unique([accountId, externalId])
+  @@index([accountId, status])
+  @@index([accountId, pipelineId, status])
+  @@map("leads")
+}
+model LeadStageHistory {
+  id              Int       @id @default(autoincrement())
+  leadId          Int       @map("lead_id")
+  stageId         Int       @map("stage_id")
+  enteredAt       DateTime  @map("entered_at") @db.Timestamptz()
+  exitedAt        DateTime? @map("exited_at") @db.Timestamptz()
+  durationSeconds Int?      @map("duration_seconds")
+  sourceEventId   BigInt?   @map("source_event_id") @db.BigInt
+  lead Lead @relation(fields: [leadId], references: [id])
+  stage Stage @relation(fields: [stageId], references: [id])
+  @@index([leadId]) @@index([stageId, durationSeconds])
+  @@map("lead_stage_history")
+}
+model LeadStageSkip {
+  id             Int      @id @default(autoincrement())
+  accountId      Int      @map("account_id")
+  leadId         Int      @map("lead_id")
+  pipelineId     Int      @map("pipeline_id")
+  sourceEventId  BigInt   @map("source_event_id") @db.BigInt
+  transitionAt   DateTime @map("transition_at") @db.Timestamptz()
+  fromStageId    Int      @map("from_stage_id")
+  toStageId      Int      @map("to_stage_id")
+  skippedStageId Int      @map("skipped_stage_id")
+  direction      String   @default("forward") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  account Account @relation(fields: [accountId], references: [id])
+  lead Lead @relation(fields: [leadId], references: [id])
+  @@unique([leadId, sourceEventId, skippedStageId])
+  @@index([leadId]) @@index([skippedStageId]) @@index([accountId, pipelineId])
+  @@map("lead_stage_skips")
+}
+model ProcessedCrmEvent {
+  id              Int       @id @default(autoincrement())
+  accountId       Int       @map("account_id")
+  externalEventId BigInt    @map("external_event_id") @db.BigInt
+  leadExternalId  BigInt?   @map("lead_external_id") @db.BigInt
+  result          String    @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  account Account @relation(fields: [accountId], references: [id])
+  @@unique([accountId, externalEventId])
+  @@map("processed_crm_events")
+}
+model Tag {
+  id         Int     @id @default(autoincrement())
+  accountId  Int     @map("account_id")
+  externalId BigInt  @map("external_id") @db.BigInt
+  name       String  @db.Text
+  isArchived Boolean @default(false) @map("is_archived")
+  account Account @relation(fields: [accountId], references: [id])
+  leadTags LeadTag[]
+  @@unique([accountId, externalId])
+  @@map("tags")
+}
+model LeadTag {
+  leadId Int @map("lead_id")
+  tagId  Int @map("tag_id")
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@id([leadId, tagId]) @@index([tagId])
+  @@map("lead_tags")
+}
+model Notification {
+  id        Int      @id @default(autoincrement())
+  accountId Int      @map("account_id")
+  type      String   @db.Text
+  message   String   @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  account Account @relation(fields: [accountId], references: [id])
+  @@index([accountId, isRead])
+  @@map("notifications")
+}
