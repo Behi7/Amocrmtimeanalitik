@@ -171,7 +171,8 @@ export default function StatsPage() {
                   <th className="p-2 text-right">Средн. время (факт)</th>
                   <th className="p-2 text-right">Средн. с перепрыгами</th>
                   <th className="p-2 text-right">Перепрыгов</th>
-                  <th className="p-2 text-right">Активных</th>
+                  <th className="p-2 text-right">Прошли этап</th>
+                  <th className="p-2 text-right">Сейчас на этапе</th>
                 </tr>
               </thead>
               <tbody>
@@ -185,6 +186,7 @@ export default function StatsPage() {
                     <td className="p-2 text-right">{formatDuration(s.avgSecondsActual)}</td>
                     <td className="p-2 text-right">{formatDuration(s.avgSecondsIncludingSkips)}</td>
                     <td className="p-2 text-right">{s.skipsCount}</td>
+                    <td className="p-2 text-right">{s.leadsCount}</td>
                     <td className="p-2 text-right">{s.activeLeadsCount}</td>
                   </tr>
                 ))}

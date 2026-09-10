@@ -35,7 +35,7 @@ export class UserService {
         FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
         WHERE h.stage_id = ${s.id}::int AND l.status <> 'gone' ${tagFilter}`;
       const skips = await this.prisma.$queryRaw<any[]>`
-        SELECT COUNT(*)::int as cnt FROM lead_stage_skips sk JOIN leads l ON l.id = sk.lead_id
+        SELECT COUNT(*)::int as cnt, COUNT(DISTINCT sk.lead_id)::int AS unique_leads FROM lead_stage_skips sk JOIN leads l ON l.id = sk.lead_id
         WHERE sk.skipped_stage_id = ${s.id}::int AND l.status <> 'gone' ${tagFilter}`;
       const active = await this.prisma.$queryRaw<any[]>`
         SELECT COUNT(h.id)::int as cnt, COALESCE(AVG(EXTRACT(EPOCH FROM (now() - h.entered_at))),0)::float as avg_active
@@ -45,6 +45,7 @@ export class UserService {
       const closedCount = Number(actual[0].closed_count) - Number(actual[0].active_count);
       const activeHistoryCount = Number(actual[0].active_count);
       const skipsCount = Number(skips[0].cnt);
+      let leadsCount = Number(actual[0].unique_leads) + Number(skips[0].unique_leads);
       let activeCount = Number(active[0].cnt);
       if (s.externalId === '142' || s.externalId === '143') {
         const terminalStatus = s.externalId === '142' ? 'won' : 'lost';
@@ -52,12 +53,13 @@ export class UserService {
           SELECT COUNT(*)::int AS cnt FROM leads l
           WHERE l.pipeline_id = ${pipelineId}::int AND l.status = ${terminalStatus}::text ${tagFilter}`;
         activeCount = Number(terminal[0].cnt);
+        leadsCount = activeCount;
       }
       const avgIncluding = (closedCount + skipsCount) > 0 ? Math.round((avg * closedCount) / (closedCount + skipsCount)) : 0;
       result.push({
         stageId: s.id.toString(), name: s.name, sortOrder: s.sortOrder,
         avgSecondsActual: Math.round(avg), avgSecondsIncludingSkips: avgIncluding,
-        skipsCount, activeLeadsCount: activeCount, activeHistoryCount,
+        skipsCount, leadsCount, activeLeadsCount: activeCount, activeHistoryCount,
       });
     }
     return { ...await this.freshness(accountId), items: result };
