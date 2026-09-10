@@ -29,8 +29,8 @@ export class DeltaSyncProcessor {
         params: { 'filter[updated_at][from]': Math.floor(windowFrom.getTime()/1000), page, limit: 250, with: 'tags' },
       });
       if (resp.status === 401) { await this.markTokenExpired(accountId); return; }
-      if (resp.status !== 200) throw new AppException('AMO_CRM_ERROR', 502, `leads: ${resp.status}`);
-      const items = resp.data?._embedded?.leads || [];
+      if (resp.status !== 200 && resp.status !== 204) throw new AppException('AMO_CRM_ERROR', 502, `leads: ${resp.status}`);
+      const items = resp.status === 204 ? [] : (resp.data?._embedded?.leads || []);
       for (const amo of items) { try { await this.events.upsertLead(this.prisma, accountId, amo); } catch (e) { this.logger.error(e); } }
       if (!items.length || items.length < 250) break;
       page++;
@@ -47,8 +47,8 @@ export class DeltaSyncProcessor {
         },
       });
       if (resp.status === 401) { await this.markTokenExpired(accountId); return; }
-      if (resp.status !== 200) throw new AppException('AMO_CRM_ERROR', 502, `events: ${resp.status}`);
-      const items = resp.data?._embedded?.events || [];
+      if (resp.status !== 200 && resp.status !== 204) throw new AppException('AMO_CRM_ERROR', 502, `events: ${resp.status}`);
+      const items = resp.status === 204 ? [] : (resp.data?._embedded?.events || []);
       for (const ev of items) { const list = eventGroups.get(ev.entity_id) || []; list.push(ev); eventGroups.set(ev.entity_id, list); }
       if (!items.length || items.length < 250) break;
       page++;
