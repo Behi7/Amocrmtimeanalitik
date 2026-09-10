@@ -22,6 +22,7 @@ export class SyncWorker extends WorkerHost {
       case 'backfill': return this.backfill.run(job.data.accountId, job);
       case 'delta': return this.delta.run(job.data.accountId);
       case 'pipeline': return this.pipeline.run(job.data.accountId);
+      case 'delta-sync-cron': return this.delta.runCron();
       case 'pipeline-sync-cron': return this.pipeline.runCron();
       case 'token-expiry-cron': return this.token.run();
     }

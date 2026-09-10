@@ -8,6 +8,13 @@ import { AppException } from '../../common/exceptions/app.exception';
 export class DeltaSyncProcessor {
   private logger = new Logger('DeltaSync');
   constructor(private prisma: PrismaService, private crm: CrmConnectorService, private crypto: CryptoService, private events: EventProcessor) {}
+  async runCron() {
+    const accounts = await this.prisma.account.findMany({ where: { status: 'connected', backfillStatus: 'done' } });
+    for (const account of accounts) {
+      try { await this.run(account.id); } catch (e) { this.logger.error(e); }
+    }
+  }
+
   async run(accountId: number) {
     const acc = await this.prisma.account.findUnique({ where: { id: accountId } });
     if (!acc || !acc.encryptedToken || acc.status !== 'connected' || acc.backfillStatus !== 'done') return;
