@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: amocrm_analytics
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/amocrm_analytics
+      REDIS_URL: redis://redis:6379
+      TOKEN_ENCRYPTION_KEY: k9Xp2LmQ7vR4sZ8nB3tY6wF1cH5jD0gE
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: changeme123456
+      JWT_ACCESS_SECRET: 7F3kL9mQ2xR5pV8nB4tY6wF1cH5jD0gE9aZ3uS7iKpQvB4tY
+      CSRF_SECRET: rK8mN3pL6qV9sX2wZ5tY7hF1cH4jD0gE
+      FRONTEND_URL: http://192.168.1.200
+      COOKIE_DOMAIN: ""
+      COOKIE_SAME_DOMAIN: "true"
+      PORT: "3000"
+      APP_ENV: production
+      SYNC_INTERVAL_MINUTES: "10"
+      SYNC_OVERLAP_MINUTES: "2"
+      GLOBAL_SYNC_CONCURRENCY: "3"
+      STALE_THRESHOLD_MINUTES: "30"
+      REFRESH_TOKEN_TTL_DAYS: "30"
+      AMO_CRM_RATE_LIMIT_RPS: "5"
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npm run seed &&
+        node dist/main.js
+      "
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
+  redisdata:
