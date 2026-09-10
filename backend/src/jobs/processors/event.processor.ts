@@ -11,10 +11,26 @@ export class EventProcessor {
   private logger = new Logger('EventProcessor');
   constructor(private prisma: PrismaService, private crm: CrmConnectorService) {}
 
-  private extractStatus(v: any): number | null {
+  private extractStatusInfo(v: any): { statusId: number; pipelineId?: number } | null {
     if (!v) return null;
-    if (typeof v === 'object' && v.lead_status?.id) return v.lead_status.id;
-    if (typeof v === 'string') { try { const p = JSON.parse(v); return p?.lead_status?.id ?? null; } catch { return null; } }
+    if (typeof v === 'string') {
+      try { return this.extractStatusInfo(JSON.parse(v)); } catch { return null; }
+    }
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const status = this.extractStatusInfo(item);
+        if (status) return status;
+      }
+      return null;
+    }
+    if (typeof v !== 'object') return null;
+    if (v.lead_status?.id != null) {
+      return { statusId: Number(v.lead_status.id), pipelineId: v.lead_status.pipeline_id != null ? Number(v.lead_status.pipeline_id) : undefined };
+    }
+    if (v.status_id != null) return { statusId: Number(v.status_id), pipelineId: v.pipeline_id != null ? Number(v.pipeline_id) : undefined };
+    if (v.statusId != null) return { statusId: Number(v.statusId), pipelineId: v.pipelineId != null ? Number(v.pipelineId) : undefined };
+    if (v.pipeline_id != null && v.id != null) return { statusId: Number(v.id), pipelineId: Number(v.pipeline_id) };
+    if (v.value != null) return this.extractStatusInfo(v.value);
     return null;
   }
 
@@ -82,7 +98,8 @@ export class EventProcessor {
       lead = await this.upsertLead(this.prisma, accountId, resp.data);
     }
     const ts = new Date(event.created_at * 1000);
-    const statusAfter = this.extractStatus(event.value_after);
+    const statusInfo = this.extractStatusInfo(event.value_after);
+    const statusAfter = statusInfo?.statusId ?? null;
     let result = 'processed';
     if (statusAfter === 142 || statusAfter === 143) {
       const open = await this.prisma.leadStageHistory.findFirst({ where: { leadId: lead.id, exitedAt: null } });
@@ -100,10 +117,21 @@ export class EventProcessor {
         await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
         return;
       }
-      const stage = await this.prisma.stage.findFirst({ where: { pipeline: { accountId }, externalId: String(statusAfter) } });
+      let stage = statusInfo?.pipelineId != null
+        ? await this.prisma.stage.findFirst({ where: { pipeline: { accountId, externalId: String(statusInfo.pipelineId) }, externalId: String(statusAfter) } })
+        : await this.prisma.stage.findFirst({ where: { pipeline: { accountId }, externalId: String(statusAfter) } });
       if (!stage) {
-        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
-        return;
+        const pipeline = statusInfo?.pipelineId != null
+          ? await this.prisma.pipeline.findUnique({ where: { accountId_externalId: { accountId, externalId: String(statusInfo.pipelineId) } } })
+          : null;
+        if (pipeline) {
+          stage = await this.prisma.stage.create({
+            data: { pipelineId: pipeline.id, externalId: String(statusAfter), name: `Архивный этап ${statusAfter}`, isArchived: true },
+          });
+        } else {
+          await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
+          return;
+        }
       }
       const open = await this.prisma.leadStageHistory.findFirst({ where: { leadId: lead.id, exitedAt: null } });
       if (open && open.stageId !== stage.id) {

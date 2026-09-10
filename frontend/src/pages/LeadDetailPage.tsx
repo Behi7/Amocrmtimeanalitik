@@ -52,7 +52,7 @@ export default function LeadDetailPage() {
                   <td className="p-2">{h.stage_name}</td>
                   <td className="p-2">{format(new Date(h.entered_at), 'dd.MM.yyyy HH:mm')}</td>
                   <td className="p-2">{h.exited_at ? format(new Date(h.exited_at), 'dd.MM.yyyy HH:mm') : 'текущий'}</td>
-                  <td className="p-2">{h.duration_seconds ? `${Math.floor(h.duration_seconds / 86400)}д ${Math.floor((h.duration_seconds % 86400) / 3600)}ч ${Math.floor((h.duration_seconds % 3600) / 60)}м` : '—'}</td>
+                  <td className="p-2">{h.duration_seconds != null ? `${Math.floor(h.duration_seconds / 86400)}д ${Math.floor((h.duration_seconds % 86400) / 3600)}ч ${Math.floor((h.duration_seconds % 3600) / 60)}м` : '—'}</td>
                 </tr>
               ))}
             </tbody>

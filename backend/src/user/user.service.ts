@@ -30,9 +30,10 @@ export class UserService {
     const result: any[] = [];
     for (const s of stages) {
       const actual = await this.prisma.$queryRaw<any[]>`
-        SELECT COALESCE(AVG(h.duration_seconds),0)::float as avg_seconds, COUNT(h.id)::int as closed_count, COUNT(DISTINCT h.lead_id)::int as unique_leads
+        SELECT COALESCE(AVG(CASE WHEN h.exited_at IS NULL THEN EXTRACT(EPOCH FROM (now() - h.entered_at)) ELSE h.duration_seconds END),0)::float as avg_seconds,
+          COUNT(h.id)::int as closed_count, COUNT(h.id) FILTER (WHERE h.exited_at IS NULL)::int as active_count, COUNT(DISTINCT h.lead_id)::int as unique_leads
         FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
-        WHERE h.stage_id = ${s.id}::int AND h.exited_at IS NOT NULL AND l.status <> 'gone' ${tagFilter}`;
+        WHERE h.stage_id = ${s.id}::int AND l.status <> 'gone' ${tagFilter}`;
       const skips = await this.prisma.$queryRaw<any[]>`
         SELECT COUNT(*)::int as cnt FROM lead_stage_skips sk JOIN leads l ON l.id = sk.lead_id
         WHERE sk.skipped_stage_id = ${s.id}::int AND l.status <> 'gone' ${tagFilter}`;
@@ -41,14 +42,15 @@ export class UserService {
         FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
         WHERE h.stage_id = ${s.id}::int AND h.exited_at IS NULL AND l.status <> 'gone' ${tagFilter}`;
       const avg = Number(actual[0].avg_seconds);
-      const closedCount = Number(actual[0].closed_count);
+      const closedCount = Number(actual[0].closed_count) - Number(actual[0].active_count);
+      const activeHistoryCount = Number(actual[0].active_count);
       const skipsCount = Number(skips[0].cnt);
       const activeCount = Number(active[0].cnt);
       const avgIncluding = (closedCount + skipsCount) > 0 ? Math.round((avg * closedCount) / (closedCount + skipsCount)) : 0;
       result.push({
         stageId: s.id.toString(), name: s.name, sortOrder: s.sortOrder,
         avgSecondsActual: Math.round(avg), avgSecondsIncludingSkips: avgIncluding,
-        skipsCount, activeLeadsCount: activeCount,
+        skipsCount, activeLeadsCount: activeCount, activeHistoryCount,
       });
     }
     return { ...await this.freshness(accountId), items: result };
@@ -71,7 +73,8 @@ export class UserService {
     const lead = await this.prisma.lead.findUnique({ where: { id: leadId }, include: { leadTags: { include: { tag: true } } } });
     if (!lead) throw new NotFoundException();
     const history = await this.prisma.$queryRaw<any[]>`
-      SELECT s.name as stage_name, s.external_id::text, h.entered_at, h.exited_at, h.duration_seconds
+      SELECT s.name as stage_name, s.external_id::text, h.entered_at, h.exited_at,
+        CASE WHEN h.exited_at IS NULL THEN EXTRACT(EPOCH FROM (now() - h.entered_at))::int ELSE h.duration_seconds END AS duration_seconds
       FROM lead_stage_history h JOIN stages s ON s.id = h.stage_id
       WHERE h.lead_id = ${leadId}::int ORDER BY h.entered_at ASC`;
     const skips = await this.prisma.$queryRaw<any[]>`
