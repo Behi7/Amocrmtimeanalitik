@@ -1,7 +1,11 @@
 import { AppError } from './errors';
 
 let accessToken: string | null = null;
-export const setAccessToken = (t: string | null) => { accessToken = t; };
+export const setAccessToken = (t: string | null) => {
+  accessToken = t;
+  if (t) localStorage.setItem('access_token', t);
+  else localStorage.removeItem('access_token');
+};
 export const getAccessToken = () => accessToken;
 
 let refreshPromise: Promise<string> | null = null;
