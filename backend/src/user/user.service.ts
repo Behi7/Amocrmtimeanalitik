@@ -41,7 +41,7 @@ export class UserService {
         SELECT COUNT(h.id)::int as cnt, COALESCE(AVG(EXTRACT(EPOCH FROM (now() - h.entered_at))),0)::float as avg_active
         FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
         WHERE h.stage_id = ${s.id}::int AND h.exited_at IS NULL AND l.status <> 'gone' ${tagFilter}`;
-      const avg = Number(actual[0].avg_seconds);
+      let avg = Number(actual[0].avg_seconds);
       const closedCount = Number(actual[0].closed_count) - Number(actual[0].active_count);
       const activeHistoryCount = Number(actual[0].active_count);
       const skipsCount = Number(skips[0].cnt);
@@ -50,10 +50,13 @@ export class UserService {
       if (s.externalId === '142' || s.externalId === '143') {
         const terminalStatus = s.externalId === '142' ? 'won' : 'lost';
         const terminal = await this.prisma.$queryRaw<any[]>`
-          SELECT COUNT(*)::int AS cnt FROM leads l
+          SELECT COUNT(*)::int AS cnt,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (l.crm_closed_at - l.crm_created_at))),0)::float AS avg_seconds
+          FROM leads l
           WHERE l.pipeline_id = ${pipelineId}::int AND l.status = ${terminalStatus}::text ${tagFilter}`;
         activeCount = Number(terminal[0].cnt);
         leadsCount = activeCount;
+        avg = Number(terminal[0].avg_seconds);
       }
       const avgIncluding = (closedCount + skipsCount) > 0 ? Math.round((avg * closedCount) / (closedCount + skipsCount)) : 0;
       result.push({
