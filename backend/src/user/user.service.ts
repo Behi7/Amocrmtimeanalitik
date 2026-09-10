@@ -45,7 +45,14 @@ export class UserService {
       const closedCount = Number(actual[0].closed_count) - Number(actual[0].active_count);
       const activeHistoryCount = Number(actual[0].active_count);
       const skipsCount = Number(skips[0].cnt);
-      const activeCount = Number(active[0].cnt);
+      let activeCount = Number(active[0].cnt);
+      if (s.externalId === '142' || s.externalId === '143') {
+        const terminalStatus = s.externalId === '142' ? 'won' : 'lost';
+        const terminal = await this.prisma.$queryRaw<any[]>`
+          SELECT COUNT(*)::int AS cnt FROM leads l
+          WHERE l.pipeline_id = ${pipelineId}::int AND l.status = ${terminalStatus}::text ${tagFilter}`;
+        activeCount = Number(terminal[0].cnt);
+      }
       const avgIncluding = (closedCount + skipsCount) > 0 ? Math.round((avg * closedCount) / (closedCount + skipsCount)) : 0;
       result.push({
         stageId: s.id.toString(), name: s.name, sortOrder: s.sortOrder,
@@ -59,14 +66,26 @@ export class UserService {
     const stage = await this.prisma.stage.findUnique({ where: { id: stageId }, include: { pipeline: true } });
     if (!stage) throw new NotFoundException();
     const tagFilter = this.buildTagFilter(tagIds);
-    const rows = await this.prisma.$queryRaw<any[]>`
-      SELECT l.id::text, l.external_id::text, l.name, h.entered_at, l.status, l.price::text
-      FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
-      WHERE h.stage_id = ${stageId}::int AND h.exited_at IS NULL AND l.status <> 'gone' ${tagFilter}
-      ORDER BY h.entered_at ASC LIMIT ${perPage}::int OFFSET ${((page-1)*perPage)}::int`;
-    const totalRows = await this.prisma.$queryRaw<any[]>`
-      SELECT COUNT(*)::int as c FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
-      WHERE h.stage_id = ${stageId}::int AND h.exited_at IS NULL AND l.status <> 'gone' ${tagFilter}`;
+    const isTerminal = stage.externalId === '142' || stage.externalId === '143';
+    const terminalStatus = stage.externalId === '142' ? 'won' : 'lost';
+    const rows = isTerminal
+      ? await this.prisma.$queryRaw<any[]>`
+        SELECT l.id::text, l.external_id::text, l.name, l.crm_closed_at AS entered_at, l.status, l.price::text
+        FROM leads l
+        WHERE l.pipeline_id = ${stage.pipelineId}::int AND l.status = ${terminalStatus}::text ${tagFilter}
+        ORDER BY l.crm_closed_at DESC LIMIT ${perPage}::int OFFSET ${((page-1)*perPage)}::int`
+      : await this.prisma.$queryRaw<any[]>`
+        SELECT l.id::text, l.external_id::text, l.name, h.entered_at, l.status, l.price::text
+        FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
+        WHERE h.stage_id = ${stageId}::int AND h.exited_at IS NULL AND l.status <> 'gone' ${tagFilter}
+        ORDER BY h.entered_at ASC LIMIT ${perPage}::int OFFSET ${((page-1)*perPage)}::int`;
+    const totalRows = isTerminal
+      ? await this.prisma.$queryRaw<any[]>`
+        SELECT COUNT(*)::int as c FROM leads l
+        WHERE l.pipeline_id = ${stage.pipelineId}::int AND l.status = ${terminalStatus}::text ${tagFilter}`
+      : await this.prisma.$queryRaw<any[]>`
+        SELECT COUNT(*)::int as c FROM lead_stage_history h JOIN leads l ON l.id = h.lead_id
+        WHERE h.stage_id = ${stageId}::int AND h.exited_at IS NULL AND l.status <> 'gone' ${tagFilter}`;
     return { ...await this.freshness(stage.pipeline.accountId), items: rows, page, perPage, total: Number(totalRows[0].c) };
   }
   async getLeadHistory(leadId: number) {
