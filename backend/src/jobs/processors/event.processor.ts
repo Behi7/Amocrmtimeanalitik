@@ -102,7 +102,20 @@ export class EventProcessor {
     const statusAfter = statusInfo?.statusId ?? null;
     let result = 'processed';
     if (statusAfter === 142 || statusAfter === 143) {
-      const open = await this.prisma.leadStageHistory.findFirst({ where: { leadId: lead.id, exitedAt: null } });
+      let open = await this.prisma.leadStageHistory.findFirst({ where: { leadId: lead.id, exitedAt: null } });
+      if (!open) {
+        const previousStatus = this.extractStatusInfo(event.value_before);
+        if (previousStatus) {
+          const previousStage = previousStatus.pipelineId != null
+            ? await this.prisma.stage.findFirst({ where: { pipeline: { accountId, externalId: String(previousStatus.pipelineId) }, externalId: String(previousStatus.statusId) } })
+            : await this.prisma.stage.findFirst({ where: { pipeline: { accountId }, externalId: String(previousStatus.statusId) } });
+          if (previousStage) {
+            open = await this.prisma.leadStageHistory.create({
+              data: { leadId: lead.id, stageId: previousStage.id, enteredAt: lead.crmCreatedAt, exitedAt: null },
+            });
+          }
+        }
+      }
       if (open) {
         const dur = Math.max(0, Math.floor((ts.getTime() - open.enteredAt.getTime()) / 1000));
         await this.prisma.leadStageHistory.update({ where: { id: open.id }, data: { exitedAt: ts, durationSeconds: dur } });

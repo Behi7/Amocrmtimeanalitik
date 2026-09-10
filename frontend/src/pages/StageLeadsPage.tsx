@@ -3,10 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { userApi } from '../api/client';
 import { format } from 'date-fns';
+import { useAuth } from '../auth/AuthContext';
 
 export default function StageLeadsPage() {
   const { stageId } = useParams();
   const nav = useNavigate();
+  const { role } = useAuth();
   const [page, setPage] = useState(1);
   const perPage = 50;
 
@@ -34,7 +36,7 @@ export default function StageLeadsPage() {
             <tbody>
               {leads.data?.items.map((l: any) => (
                 <tr key={l.id} className="border-t hover:bg-slate-50 cursor-pointer"
-                  onClick={() => nav(`/lead/${l.id}`)}>
+                  onClick={() => nav(role === 'admin' ? `/admin/lead/${l.id}` : `/lead/${l.id}`)}>
                   <td className="p-2">{l.external_id}</td>
                   <td className="p-2">{l.name}</td>
                   <td className="p-2">{l.price ? Number(l.price).toLocaleString() : '—'}</td>

@@ -60,7 +60,7 @@ export default function ClosedLeadsPage() {
             <tbody>
               {leads.data?.items.map((l: any) => (
                 <tr key={l.id} className="border-t hover:bg-slate-50 cursor-pointer"
-                  onClick={() => nav(`/lead/${l.id}`)}>
+                  onClick={() => nav(role === 'admin' ? `/admin/lead/${l.id}` : `/lead/${l.id}`)}>
                   <td className="p-2">{l.external_id}</td>
                   <td className="p-2">{l.name}</td>
                   <td className="p-2">{l.price ? Number(l.price).toLocaleString() : '—'}</td>
