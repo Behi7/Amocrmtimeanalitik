@@ -64,7 +64,7 @@ export class EventProcessor {
   }
 
   async processStatusChanged(accountId: number, subdomain: string, baseDomain: string, token: string, event: CrmEvent) {
-    await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(${accountId}, ${event.entity_id}::bigint)`;
+    await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId + '-' + event.entity_id})::bigint)`;
     const existing = await this.prisma.processedCrmEvent.findUnique({
       where: { accountId_externalEventId: { accountId, externalEventId: BigInt(event.id) } },
     });
@@ -146,7 +146,7 @@ export class EventProcessor {
   }
 
   async processLeadDeleted(accountId: number, event: CrmEvent) {
-    await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(${accountId}, ${event.entity_id}::bigint)`;
+    await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId + '-' + event.entity_id})::bigint)`;
     const existing = await this.prisma.processedCrmEvent.findUnique({
       where: { accountId_externalEventId: { accountId, externalEventId: BigInt(event.id) } },
     });
@@ -168,7 +168,7 @@ export class EventProcessor {
   }
 
   async processLeadRestored(accountId: number, subdomain: string, baseDomain: string, token: string, event: CrmEvent) {
-    await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(${accountId}, ${event.entity_id}::bigint)`;
+    await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId + '-' + event.entity_id})::bigint)`;
     const existing = await this.prisma.processedCrmEvent.findUnique({
       where: { accountId_externalEventId: { accountId, externalEventId: BigInt(event.id) } },
     });
