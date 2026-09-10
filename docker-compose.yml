@@ -49,6 +49,7 @@ services:
       JWT_ACCESS_SECRET: 7F3kL9mQ2xR5pV8nB4tY6wF1cH5jD0gE9aZ3uS7iKpQvB4tY
       CSRF_SECRET: rK8mN3pL6qV9sX2wZ5tY7hF1cH4jD0gE
       FRONTEND_URL: http://192.168.1.200
+      COOKIE_SECURE: "false"
       COOKIE_DOMAIN: ""
       COOKIE_SAME_DOMAIN: "true"
       PORT: "3000"

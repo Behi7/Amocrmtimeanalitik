@@ -34,8 +34,9 @@ export class AuthController {
   private setCookie(res: Response, token: string) { res.cookie('refresh_token', token, this.opts()); }
   private opts(): CookieOptions {
     const sameDomain = (process.env.COOKIE_SAME_DOMAIN || 'true') === 'true';
+    const secure = process.env.COOKIE_SECURE === 'true' || process.env.FRONTEND_URL?.startsWith('https://');
     return {
-      httpOnly: true, secure: process.env.APP_ENV === 'production',
+      httpOnly: true, secure,
       sameSite: sameDomain ? 'lax' : 'none',
       domain: process.env.COOKIE_DOMAIN || undefined,
       path: '/',
