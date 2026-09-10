@@ -177,7 +177,10 @@ export default function StatsPage() {
               <tbody>
                 {stats.data.items.map((s: any) => (
                   <tr key={s.stageId} className="border-t hover:bg-slate-50 cursor-pointer"
-                    onClick={() => nav(role === 'admin' ? `/admin/stage/${s.stageId}` : `/stage/${s.stageId}`)}>
+                    onClick={() => {
+                      const path = role === 'admin' ? `/admin/stage/${s.stageId}` : `/stage/${s.stageId}`;
+                      nav(selectedTags.length > 0 ? `${path}?tags=${selectedTags.join(',')}` : path);
+                    }}>
                     <td className="p-2 font-medium">{s.name}</td>
                     <td className="p-2 text-right">{formatDuration(s.avgSecondsActual)}</td>
                     <td className="p-2 text-right">{formatDuration(s.avgSecondsIncludingSkips)}</td>

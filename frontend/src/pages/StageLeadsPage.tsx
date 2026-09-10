@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { userApi } from '../api/client';
 import { format } from 'date-fns';
 import { useAuth } from '../auth/AuthContext';
@@ -9,12 +9,14 @@ export default function StageLeadsPage() {
   const { stageId } = useParams();
   const nav = useNavigate();
   const { role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const tagIds = (searchParams.get('tags') || '').split(',').filter(Boolean).map(Number).filter(Number.isInteger);
   const [page, setPage] = useState(1);
   const perPage = 50;
 
   const leads = useQuery({
-    queryKey: ['stageLeads', stageId, page],
-    queryFn: () => userApi.activeLeads(parseInt(stageId!, 10), page, perPage),
+    queryKey: ['stageLeads', stageId, page, tagIds],
+    queryFn: () => userApi.activeLeads(parseInt(stageId!, 10), page, perPage, tagIds),
   });
 
   return (
