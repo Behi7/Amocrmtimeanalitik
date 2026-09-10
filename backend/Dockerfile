@@ -29,4 +29,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Запуск: миграции → сид → приложение
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run seed && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run seed && node dist/src/main.js"]

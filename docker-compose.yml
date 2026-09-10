@@ -63,7 +63,7 @@ services:
       sh -c "
         npx prisma migrate deploy &&
         npm run seed &&
-        node dist/main.js
+        node dist/src/main.js
       "
 
   frontend:
