@@ -20,7 +20,7 @@ export class BackfillProcessor {
       if (accResp.status === 401) { await this.fail(accountId, 'Token expired'); return; }
       if (accResp.status !== 200) { await this.fail(accountId, `Account: ${accResp.status}`); return; }
       const tz = this.normalizeTz(accResp.data?.timezone);
-      await this.prisma.account.update({ where: { id: accountId }, data: { timezone: tz, externalAccountId: BigInt(accResp.data.id) } });
+      await this.prisma.account.update({ where: { id: accountId }, data: { timezone: tz, externalAccountId: String(accResp.data.id) } });
       await this.syncPipelines(accountId, acc, token);
       const cursor: any = (acc.backfillCursor as any) || { phase: 'leads', page: 1, limit: 250, backfillStartedAt: startedAt.toISOString() };
 
@@ -61,7 +61,7 @@ export class BackfillProcessor {
           for (const ev of list) {
             try { await this.events.processStatusChanged(accountId, acc.subdomain, acc.baseDomain, token, ev); } catch (e) { this.logger.error(e); }
           }
-          const lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: BigInt(lid) } } });
+          const lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: String(lid) } } });
           if (lead) { try { await this.events.createFallbackInterval(lead.id); } catch (e) {} }
         }
       }
@@ -111,15 +111,15 @@ export class BackfillProcessor {
     const pipes = resp.data?._embedded?.pipelines || resp.data || [];
     for (const p of pipes) {
       const pipeline = await this.prisma.pipeline.upsert({
-        where: { accountId_externalId: { accountId, externalId: BigInt(p.id) } },
-        create: { accountId, externalId: BigInt(p.id), name: p.name, isArchived: false },
+        where: { accountId_externalId: { accountId, externalId: String(p.id) } },
+        create: { accountId, externalId: String(p.id), name: p.name, isArchived: false },
         update: { name: p.name, isArchived: false },
       });
       const stages = p._embedded?.statuses || [];
       for (const s of stages) {
         await this.prisma.stage.upsert({
-          where: { pipelineId_externalId: { pipelineId: pipeline.id, externalId: BigInt(s.id) } },
-          create: { pipelineId: pipeline.id, externalId: BigInt(s.id), name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
+          where: { pipelineId_externalId: { pipelineId: pipeline.id, externalId: String(s.id) } },
+          create: { pipelineId: pipeline.id, externalId: String(s.id), name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
           update: { name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
         });
       }

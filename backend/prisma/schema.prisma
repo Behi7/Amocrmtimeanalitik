@@ -10,7 +10,7 @@ generator client {
 model Account {
   id                  Int       @id @default(autoincrement())
   subdomain           String    @db.Text
-  externalAccountId   BigInt?   @map("external_account_id") @db.BigInt
+  externalAccountId   String?   @map("external_account_id") @db.Text
   baseDomain          String    @default("amocrm.ru") @map("base_domain") @db.Text
   encryptedToken      String?   @map("encrypted_token") @db.Text
   tokenExpiresAt      DateTime? @map("token_expires_at") @db.Timestamptz()
@@ -67,7 +67,7 @@ model RefreshToken {
 model Pipeline {
   id         Int      @id @default(autoincrement())
   accountId  Int      @map("account_id")
-  externalId BigInt   @map("external_id") @db.BigInt
+  externalId String   @map("external_id") @db.Text
   name       String   @db.Text
   isArchived Boolean  @default(false) @map("is_archived")
 
@@ -82,7 +82,7 @@ model Pipeline {
 model Stage {
   id         Int      @id @default(autoincrement())
   pipelineId Int      @map("pipeline_id")
-  externalId BigInt   @map("external_id") @db.BigInt
+  externalId String   @map("external_id") @db.Text
   name       String   @db.Text
   sortOrder  Int?     @map("sort_order")
   isArchived Boolean  @default(false) @map("is_archived")
@@ -98,7 +98,7 @@ model Stage {
 model Lead {
   id             Int       @id @default(autoincrement())
   accountId      Int       @map("account_id")
-  externalId     BigInt    @map("external_id") @db.BigInt
+  externalId     String    @map("external_id") @db.Text
   name           String?   @db.Text
   pipelineId     Int?      @map("pipeline_id")
   currentStageId Int?      @map("current_stage_id")
@@ -129,7 +129,7 @@ model LeadStageHistory {
   enteredAt      DateTime  @map("entered_at") @db.Timestamptz()
   exitedAt       DateTime? @map("exited_at") @db.Timestamptz()
   durationSeconds Int?     @map("duration_seconds")
-  sourceEventId  BigInt?   @map("source_event_id") @db.BigInt
+  sourceEventId  String?   @map("source_event_id") @db.Text
 
   lead  Lead  @relation(fields: [leadId], references: [id])
   stage Stage @relation(fields: [stageId], references: [id])
@@ -144,7 +144,7 @@ model LeadStageSkip {
   accountId      Int      @map("account_id")
   leadId         Int      @map("lead_id")
   pipelineId     Int      @map("pipeline_id")
-  sourceEventId  BigInt   @map("source_event_id") @db.BigInt
+  sourceEventId  String   @map("source_event_id") @db.Text
   transitionAt   DateTime @map("transition_at") @db.Timestamptz()
   fromStageId    Int      @map("from_stage_id")
   toStageId      Int      @map("to_stage_id")
@@ -165,8 +165,8 @@ model LeadStageSkip {
 model ProcessedCrmEvent {
   id              Int       @id @default(autoincrement())
   accountId       Int       @map("account_id")
-  externalEventId BigInt    @map("external_event_id") @db.BigInt
-  leadExternalId  BigInt?   @map("lead_external_id") @db.BigInt
+  externalEventId String    @map("external_event_id") @db.Text
+  leadExternalId  String?   @map("lead_external_id") @db.Text
   result          String    @db.Text
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -179,7 +179,7 @@ model ProcessedCrmEvent {
 model Tag {
   id         Int     @id @default(autoincrement())
   accountId  Int     @map("account_id")
-  externalId BigInt  @map("external_id") @db.BigInt
+  externalId String  @map("external_id") @db.Text
   name       String  @db.Text
   isArchived Boolean @default(false) @map("is_archived")
 

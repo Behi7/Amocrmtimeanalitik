@@ -24,19 +24,19 @@ export class PipelineSyncProcessor {
     const pipes = resp.data?._embedded?.pipelines || resp.data || [];
     for (const p of pipes) {
       const pipeline = await this.prisma.pipeline.upsert({
-        where: { accountId_externalId: { accountId, externalId: BigInt(p.id) } },
-        create: { accountId, externalId: BigInt(p.id), name: p.name, isArchived: false },
+        where: { accountId_externalId: { accountId, externalId: String(p.id) } },
+        create: { accountId, externalId: String(p.id), name: p.name, isArchived: false },
         update: { name: p.name, isArchived: false },
       });
       const stages = p._embedded?.statuses || [];
       for (const s of stages) {
         await this.prisma.stage.upsert({
-          where: { pipelineId_externalId: { pipelineId: pipeline.id, externalId: BigInt(s.id) } },
-          create: { pipelineId: pipeline.id, externalId: BigInt(s.id), name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
+          where: { pipelineId_externalId: { pipelineId: pipeline.id, externalId: String(s.id) } },
+          create: { pipelineId: pipeline.id, externalId: String(s.id), name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
           update: { name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
         });
       }
-      const stageIds = stages.map((x: any) => BigInt(x.id));
+      const stageIds = stages.map((x: any) => String(x.id));
       if (stageIds.length > 0) {
         await this.prisma.stage.updateMany({
           where: { pipelineId: pipeline.id, NOT: { externalId: { in: stageIds } } },
@@ -44,7 +44,7 @@ export class PipelineSyncProcessor {
         });
       }
     }
-    const pipeIds = pipes.map((x: any) => BigInt(x.id));
+    const pipeIds = pipes.map((x: any) => String(x.id));
     if (pipeIds.length > 0) {
       await this.prisma.pipeline.updateMany({
         where: { accountId, NOT: { externalId: { in: pipeIds } } },

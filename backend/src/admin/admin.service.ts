@@ -25,7 +25,7 @@ export class AdminService {
     if (!['amocrm.ru','kommo.com'].includes(dto.baseDomain)) throw new AppException('VALIDATION_ERROR', 400, 'Invalid baseDomain');
     const resp = await this.crm.request<any>(0, dto.subdomain, dto.baseDomain, dto.token, { method: 'GET', path: '/api/v4/account' });
     if (resp.status !== 200) throw new AppException('AMO_CRM_ERROR', 502, `amoCRM returned ${resp.status}`);
-    const extId = BigInt(resp.data.id);
+    const extId = String(resp.data.id);
     const timezone = this.normalizeTz(resp.data.timezone);
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
     if (user) throw new AppException('CONFLICT', 409, 'Email already exists');
@@ -57,7 +57,7 @@ export class AdminService {
     if (dto.token) {
       const resp = await this.crm.request<any>(0, acc.subdomain, acc.baseDomain, dto.token, { method: 'GET', path: '/api/v4/account' });
       if (resp.status !== 200) throw new AppException('AMO_CRM_ERROR', 502, `amoCRM returned ${resp.status}`);
-      const newExtId = BigInt(resp.data.id);
+      const newExtId = String(resp.data.id);
       if (acc.externalAccountId !== null && acc.externalAccountId !== newExtId) {
         throw new AppException('VALIDATION_ERROR', 400, 'Token belongs to a different amoCRM account');
       }

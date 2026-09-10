@@ -55,7 +55,7 @@ export class DeltaSyncProcessor {
           else if (ev.type === 'lead_restored') await this.events.processLeadRestored(accountId, acc.subdomain, acc.baseDomain, token, ev);
         } catch (e) { this.logger.error(e); }
       }
-      const lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: BigInt(leadId) } } });
+      const lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: String(leadId) } } });
       if (lead) { try { await this.events.createFallbackInterval(lead.id); } catch (e) {} }
     }
     const overlap = parseInt(process.env.SYNC_OVERLAP_MINUTES || '2', 10) * 60 * 1000;

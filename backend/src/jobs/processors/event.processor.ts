@@ -19,10 +19,10 @@ export class EventProcessor {
   }
 
   async upsertLead(tx: PrismaClient, accountId: number, amo: AmoLead) {
-    const pipeline = await tx.pipeline.findFirst({ where: { accountId, externalId: BigInt(amo.pipeline_id) } });
+    const pipeline = await tx.pipeline.findFirst({ where: { accountId, externalId: String(amo.pipeline_id) } });
     let stageId: number | null = null;
     if (pipeline) {
-      const st = await tx.stage.findFirst({ where: { pipelineId: pipeline.id, externalId: BigInt(amo.status_id) } });
+      const st = await tx.stage.findFirst({ where: { pipelineId: pipeline.id, externalId: String(amo.status_id) } });
       stageId = st?.id ?? null;
     }
     let status: string = 'open';
@@ -31,9 +31,9 @@ export class EventProcessor {
     else if (amo.status_id === 143) { status = 'lost'; closed = amo.closed_at ? new Date(amo.closed_at * 1000) : null; }
     const priceNum = amo.price != null ? Number(amo.price) : null;
     const lead = await tx.lead.upsert({
-      where: { accountId_externalId: { accountId, externalId: BigInt(amo.id) } },
+      where: { accountId_externalId: { accountId, externalId: String(amo.id) } },
       create: {
-        accountId, externalId: BigInt(amo.id), name: amo.name || null,
+        accountId, externalId: String(amo.id), name: amo.name || null,
         pipelineId: pipeline?.id ?? null, currentStageId: stageId,
         status, price: priceNum != null ? priceNum as any : null,
         crmCreatedAt: new Date(amo.created_at * 1000),
@@ -49,8 +49,8 @@ export class EventProcessor {
       const tagIds: number[] = [];
       for (const t of amo._embedded.tags) {
         const tag = await tx.tag.upsert({
-          where: { accountId_externalId: { accountId, externalId: BigInt(t.id) } },
-          create: { accountId, externalId: BigInt(t.id), name: t.name },
+          where: { accountId_externalId: { accountId, externalId: String(t.id) } },
+          create: { accountId, externalId: String(t.id), name: t.name },
           update: { name: t.name },
         });
         tagIds.push(tag.id);
@@ -66,17 +66,17 @@ export class EventProcessor {
   async processStatusChanged(accountId: number, subdomain: string, baseDomain: string, token: string, event: CrmEvent) {
     await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId + '-' + event.entity_id})::bigint)`;
     const existing = await this.prisma.processedCrmEvent.findUnique({
-      where: { accountId_externalEventId: { accountId, externalEventId: BigInt(event.id) } },
+      where: { accountId_externalEventId: { accountId, externalEventId: String(event.id) } },
     });
     if (existing) return;
-    const leadExtId = BigInt(event.entity_id);
+    const leadExtId = String(event.entity_id);
     let lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: leadExtId } } });
     if (!lead) {
       const resp = await this.crm.request<any>(accountId, subdomain, baseDomain, token, {
         method: 'GET', path: `/api/v4/leads/${event.entity_id}`, params: { with: 'tags' },
       });
       if (resp.status !== 200) {
-        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_lead' } });
+        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_lead' } });
         return;
       }
       lead = await this.upsertLead(this.prisma, accountId, resp.data);
@@ -97,12 +97,12 @@ export class EventProcessor {
       result = statusAfter === 142 ? 'closed_won' : 'closed_lost';
     } else {
       if (statusAfter == null) {
-        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
+        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
         return;
       }
-      const stage = await this.prisma.stage.findFirst({ where: { pipeline: { accountId }, externalId: BigInt(statusAfter) } });
+      const stage = await this.prisma.stage.findFirst({ where: { pipeline: { accountId }, externalId: String(statusAfter) } });
       if (!stage) {
-        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
+        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_stage' } });
         return;
       }
       const open = await this.prisma.leadStageHistory.findFirst({ where: { leadId: lead.id, exitedAt: null } });
@@ -121,10 +121,10 @@ export class EventProcessor {
             });
             for (const sk of between) {
               await this.prisma.leadStageSkip.upsert({
-                where: { leadId_sourceEventId_skippedStageId: { leadId: lead.id, sourceEventId: BigInt(event.id), skippedStageId: sk.id } },
+                where: { leadId_sourceEventId_skippedStageId: { leadId: lead.id, sourceEventId: String(event.id), skippedStageId: sk.id } },
                 create: {
                   accountId, leadId: lead.id, pipelineId: fromStage.pipelineId,
-                  sourceEventId: BigInt(event.id), transitionAt: ts,
+                  sourceEventId: String(event.id), transitionAt: ts,
                   fromStageId: fromStage.id, toStageId: stage.id, skippedStageId: sk.id, direction: dir,
                 },
                 update: {},
@@ -135,26 +135,26 @@ export class EventProcessor {
       }
       if (!open || open.stageId !== stage.id) {
         await this.prisma.leadStageHistory.create({
-          data: { leadId: lead.id, stageId: stage.id, enteredAt: ts, exitedAt: null, sourceEventId: BigInt(event.id) },
+          data: { leadId: lead.id, stageId: stage.id, enteredAt: ts, exitedAt: null, sourceEventId: String(event.id) },
         });
       }
       const updates: any = { currentStageId: stage.id, updatedAt: ts };
       if (lead.status === 'won' || lead.status === 'lost') { updates.status = 'open'; updates.crmClosedAt = null; }
       await this.prisma.lead.update({ where: { id: lead.id }, data: updates });
     }
-    await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result } });
+    await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result } });
   }
 
   async processLeadDeleted(accountId: number, event: CrmEvent) {
     await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId + '-' + event.entity_id})::bigint)`;
     const existing = await this.prisma.processedCrmEvent.findUnique({
-      where: { accountId_externalEventId: { accountId, externalEventId: BigInt(event.id) } },
+      where: { accountId_externalEventId: { accountId, externalEventId: String(event.id) } },
     });
     if (existing) return;
-    const leadExtId = BigInt(event.entity_id);
+    const leadExtId = String(event.entity_id);
     const lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: leadExtId } } });
     if (!lead) {
-      await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_lead' } });
+      await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_lead' } });
       return;
     }
     const ts = new Date(event.created_at * 1000);
@@ -164,23 +164,23 @@ export class EventProcessor {
       await this.prisma.leadStageHistory.update({ where: { id: open.id }, data: { exitedAt: ts, durationSeconds: dur } });
     }
     await this.prisma.lead.update({ where: { id: lead.id }, data: { status: 'gone', updatedAt: ts } });
-    await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'deleted' } });
+    await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'deleted' } });
   }
 
   async processLeadRestored(accountId: number, subdomain: string, baseDomain: string, token: string, event: CrmEvent) {
     await this.prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${accountId + '-' + event.entity_id})::bigint)`;
     const existing = await this.prisma.processedCrmEvent.findUnique({
-      where: { accountId_externalEventId: { accountId, externalEventId: BigInt(event.id) } },
+      where: { accountId_externalEventId: { accountId, externalEventId: String(event.id) } },
     });
     if (existing) return;
-    const leadExtId = BigInt(event.entity_id);
+    const leadExtId = String(event.entity_id);
     let lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: leadExtId } } });
     if (!lead) {
       const resp = await this.crm.request<any>(accountId, subdomain, baseDomain, token, {
         method: 'GET', path: `/api/v4/leads/${event.entity_id}`, params: { with: 'tags' },
       });
       if (resp.status !== 200) {
-        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_lead' } });
+        await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'skipped_unknown_lead' } });
         return;
       }
       lead = await this.upsertLead(this.prisma, accountId, resp.data);
@@ -189,10 +189,10 @@ export class EventProcessor {
     await this.prisma.lead.update({ where: { id: lead.id }, data: { updatedAt: ts } });
     if (lead.currentStageId && !lead.crmClosedAt) {
       await this.prisma.leadStageHistory.create({
-        data: { leadId: lead.id, stageId: lead.currentStageId, enteredAt: ts, exitedAt: null, sourceEventId: BigInt(event.id) },
+        data: { leadId: lead.id, stageId: lead.currentStageId, enteredAt: ts, exitedAt: null, sourceEventId: String(event.id) },
       });
     }
-    await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: BigInt(event.id), leadExternalId: leadExtId, result: 'restored' } });
+    await this.prisma.processedCrmEvent.create({ data: { accountId, externalEventId: String(event.id), leadExternalId: leadExtId, result: 'restored' } });
   }
 
   async createFallbackInterval(leadId: number) {
