@@ -112,12 +112,10 @@ export default function StatsPage() {
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Воронки</h1>
           <div className="flex gap-2">
-            {role === 'viewer' && (
-              <>
-                <button onClick={() => nav('/closed')} className="text-sm bg-slate-200 px-3 py-1 rounded">Закрытые</button>
-                <button onClick={() => nav('/search')} className="text-sm bg-slate-200 px-3 py-1 rounded">Поиск</button>
-              </>
-            )}
+            <button onClick={() => nav(role === 'admin' ? `/admin/closed/${effectiveAccountId}` : '/closed')}
+              className="text-sm bg-slate-200 px-3 py-1 rounded">Закрытые</button>
+            <button onClick={() => nav(role === 'admin' ? `/admin/search/${effectiveAccountId}` : '/search')}
+              className="text-sm bg-slate-200 px-3 py-1 rounded">Поиск</button>
           </div>
         </div>
 
