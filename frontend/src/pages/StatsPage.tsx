@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { userApi } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,13 +22,25 @@ export default function StatsPage() {
   const { accountId: paramAccountId } = useParams();
   const { role } = useAuth();
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // For viewer, get their accountId from JWT (we'll fetch pipelines for a dummy and extract)
   const [accountId, setAccountId] = useState<number | null>(
     paramAccountId ? parseInt(paramAccountId, 10) : null,
   );
-  const [pipelineId, setPipelineId] = useState<number | null>(null);
-  const [selectedTags, setSelectedTags] = useState<number[]>([]);
+  const storedPipelineId = Number(searchParams.get('pipeline'));
+  const storedTagIds = (searchParams.get('tags') || '').split(',').filter(Boolean).map(Number).filter(Number.isInteger);
+  const [pipelineId, setPipelineId] = useState<number | null>(Number.isInteger(storedPipelineId) && storedPipelineId > 0 ? storedPipelineId : null);
+  const [selectedTags, setSelectedTags] = useState<number[]>(storedTagIds);
+
+  const updateFilters = (nextPipelineId: number | null, nextTagIds: number[]) => {
+    const next = new URLSearchParams(searchParams);
+    if (nextPipelineId) next.set('pipeline', String(nextPipelineId));
+    else next.delete('pipeline');
+    if (nextTagIds.length > 0) next.set('tags', nextTagIds.join(','));
+    else next.delete('tags');
+    setSearchParams(next);
+  };
 
   // If viewer, we need to get accountId from JWT. Decode from token.
   const decodedAccountId = (() => {
@@ -118,7 +130,11 @@ export default function StatsPage() {
 
         <div className="bg-white p-4 rounded shadow mb-4">
           <label className="block text-sm font-medium mb-2">Воронка</label>
-          <select value={pipelineId || ''} onChange={e => setPipelineId(parseInt(e.target.value, 10))}
+          <select value={pipelineId || ''} onChange={e => {
+            const nextPipelineId = parseInt(e.target.value, 10) || null;
+            setPipelineId(nextPipelineId);
+            updateFilters(nextPipelineId, selectedTags);
+          }}
             className="w-full p-2 border rounded">
             <option value="">— выберите —</option>
             {pipelines.data?.items.map((p: any) => (
@@ -135,8 +151,11 @@ export default function StatsPage() {
                 <label key={t.id} className="flex items-center gap-1 text-sm">
                   <input type="checkbox" checked={selectedTags.includes(t.id)}
                     onChange={e => {
-                      if (e.target.checked) setSelectedTags([...selectedTags, t.id]);
-                      else setSelectedTags(selectedTags.filter(x => x !== t.id));
+                      const nextTagIds = e.target.checked
+                        ? [...selectedTags, t.id]
+                        : selectedTags.filter(x => x !== t.id);
+                      setSelectedTags(nextTagIds);
+                      updateFilters(pipelineId, nextTagIds);
                     }} />
                   {t.name}
                 </label>
