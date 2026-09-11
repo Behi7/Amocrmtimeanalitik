@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -43,17 +41,17 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/amocrm_analytics
       REDIS_URL: redis://redis:6379
-      TOKEN_ENCRYPTION_KEY: k9Xp2LmQ7vR4sZ8nB3tY6wF1cH5jD0gE
-      ADMIN_EMAIL: admin@example.com
-      ADMIN_PASSWORD: changeme123456
-      JWT_ACCESS_SECRET: 7F3kL9mQ2xR5pV8nB4tY6wF1cH5jD0gE9aZ3uS7iKpQvB4tY
-      CSRF_SECRET: rK8mN3pL6qV9sX2wZ5tY7hF1cH4jD0gE
-      FRONTEND_URL: http://192.168.1.200
-      COOKIE_SECURE: "false"
-      COOKIE_DOMAIN: ""
-      COOKIE_SAME_DOMAIN: "true"
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123456}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      CSRF_SECRET: ${CSRF_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://192.168.1.200}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      COOKIE_SAME_DOMAIN: ${COOKIE_SAME_DOMAIN:-true}
       PORT: "3000"
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       SYNC_INTERVAL_MINUTES: "10"
       SYNC_OVERLAP_MINUTES: "2"
       GLOBAL_SYNC_CONCURRENCY: "3"

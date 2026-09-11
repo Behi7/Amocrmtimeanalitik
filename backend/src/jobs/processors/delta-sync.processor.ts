@@ -49,12 +49,23 @@ export class DeltaSyncProcessor {
       if (resp.status === 401) { await this.markTokenExpired(accountId); return; }
       if (resp.status !== 200 && resp.status !== 204) throw new AppException('AMO_CRM_ERROR', 502, `events: ${resp.status}`);
       const items = resp.status === 204 ? [] : (resp.data?._embedded?.events || []);
-      for (const ev of items) { const list = eventGroups.get(ev.entity_id) || []; list.push(ev); eventGroups.set(ev.entity_id, list); }
+      for (const ev of items) {
+        const list = eventGroups.get(ev.entity_id) || [];
+        list.push({
+          id: ev.id,
+          type: ev.type,
+          entity_id: ev.entity_id,
+          created_at: ev.created_at,
+          value_after: ev.value_after,
+          value_before: ev.value_before,
+        });
+        eventGroups.set(ev.entity_id, list);
+      }
       if (!items.length || items.length < 250) break;
       page++;
     }
     for (const [leadId, list] of eventGroups.entries()) {
-      list.sort((a, b) => a.created_at - b.created_at);
+      list.sort((a, b) => (a.created_at - b.created_at) || (a.id - b.id));
       for (const ev of list) {
         try {
           if (ev.type === 'lead_status_changed') await this.events.processStatusChanged(accountId, acc.subdomain, acc.baseDomain, token, ev);

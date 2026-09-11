@@ -29,6 +29,8 @@ export class UserController {
     @Query('perPage', new DefaultValuePipe(50), ParseIntPipe) perPage: number,
     @Query('tagIds', ParseTagIdsPipe) tagIds: number[],
   ) { return this.svc.searchLeads(id, q || '', page, perPage, tagIds); }
+    @Query('status') status?: string,
+  ) { return this.svc.searchLeads(id, q || '', page, perPage, tagIds, status); }
   @Get('accounts/:accountId/leads') byStatus(
     @Param('accountId', ParseIntPipe) id: number,
     @Query('status') status: string,

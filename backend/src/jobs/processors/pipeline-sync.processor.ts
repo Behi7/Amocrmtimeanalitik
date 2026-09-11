@@ -28,7 +28,8 @@ export class PipelineSyncProcessor {
         create: { accountId, externalId: String(p.id), name: p.name, isArchived: false },
         update: { name: p.name, isArchived: false },
       });
-      const stages = p._embedded?.statuses || [];
+      const rawStatuses = p._embedded?.statuses || [];
+      const stages = rawStatuses.filter((s: any) => String(s.id) !== '142' && String(s.id) !== '143');
       for (const s of stages) {
         await this.prisma.stage.upsert({
           where: { pipelineId_externalId: { pipelineId: pipeline.id, externalId: String(s.id) } },

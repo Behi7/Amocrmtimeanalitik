@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { userApi } from '../api/client';
 import { format } from 'date-fns';
+import { formatDate } from '../lib/utils';
 import { useAuth } from '../auth/AuthContext';
+
 
 export default function StageLeadsPage() {
   const { stageId } = useParams();
@@ -43,6 +45,7 @@ export default function StageLeadsPage() {
                   <td className="p-2">{l.name}</td>
                   <td className="p-2">{l.price ? Number(l.price).toLocaleString() : '—'}</td>
                   <td className="p-2">{format(new Date(l.entered_at), 'dd.MM.yyyy HH:mm')}</td>
+                  <td className="p-2">{formatDate(l.entered_at, 'dd.MM.yyyy HH:mm')}</td>
                   <td className="p-2">
                     <span className={`px-2 py-1 rounded text-xs ${
                       l.status === 'open' ? 'bg-blue-100 text-blue-800' :

@@ -13,7 +13,17 @@ export class JobSchedulerService implements OnModuleInit {
     await this.queue.add('delta-sync-cron', { type: 'delta-sync-cron' }, { repeat: { every: syncEveryMinutes * 60 * 1000 }, jobId: 'delta-sync-cron' });
   }
   async startBackfill(accountId: number) {
-    return this.queue.add('backfill', { accountId, type: 'backfill' }, { jobId: `backfill-${accountId}`, removeOnComplete: true, removeOnFail: 100 });
+    const jobs = await this.queue.getJobs(['waiting', 'delayed', 'failed', 'completed']);
+    for (const j of jobs) {
+      if (j.data?.type === 'backfill' && j.data?.accountId === accountId) {
+        try { await j.remove(); } catch (e) { this.logger.warn(`Could not remove old job ${j.id}: ${e}`); }
+      }
+    }
+    return this.queue.add(
+      'backfill',
+      { accountId, type: 'backfill' },
+      { jobId: `backfill-${accountId}-${Date.now()}`, removeOnComplete: true, removeOnFail: 100 },
+    );
   }
   async stopAccountJobs(accountId: number) {
     const jobs = await this.queue.getJobs(['waiting','active','delayed']);

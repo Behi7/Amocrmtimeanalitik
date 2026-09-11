@@ -31,8 +31,8 @@ export class BackfillProcessor {
             method: 'GET', path: '/api/v4/leads', params: { page, limit: cursor.limit, with: 'tags' },
           });
           if (resp.status === 401) { await this.fail(accountId, 'Token expired'); return; }
-          if (resp.status !== 200) { await this.fail(accountId, `Leads: ${resp.status}`); return; }
-          const items = resp.data?._embedded?.leads || [];
+          if (resp.status !== 200 && resp.status !== 204) { await this.fail(accountId, `Leads: ${resp.status}`); return; }
+          const items = resp.status === 204 ? [] : (resp.data?._embedded?.leads || []);
           for (const amo of items) { try { await this.events.upsertLead(this.prisma, accountId, amo); } catch (e) { this.logger.error(e); } }
           await this.saveCursor(accountId, { ...cursor, page });
           if (!items.length || items.length < cursor.limit) { cursor.phase = 'events'; cursor.page = 1; await this.saveCursor(accountId, cursor); break; }
@@ -42,40 +42,54 @@ export class BackfillProcessor {
 
       if (cursor.phase === 'events') {
         const groups = new Map<number, any[]>();
-        let page = cursor.page;
+        let page = 1;
         while (true) {
           const resp = await this.crm.request<any>(accountId, acc.subdomain, acc.baseDomain, token, {
             method: 'GET', path: '/api/v4/events',
             params: { 'filter[type]': 'lead_status_changed', page, limit: 250 },
           });
           if (resp.status === 401) { await this.fail(accountId, 'Token expired'); return; }
-          if (resp.status !== 200) { await this.fail(accountId, `Events: ${resp.status}`); return; }
-          const items = resp.data?._embedded?.events || [];
-          for (const ev of items) { const list = groups.get(ev.entity_id) || []; list.push(ev); groups.set(ev.entity_id, list); }
-          if (!items.length || items.length < 250) { cursor.phase = 'deleted_events'; cursor.page = 1; await this.saveCursor(accountId, cursor); break; }
+          if (resp.status !== 200 && resp.status !== 204) { await this.fail(accountId, `Events: ${resp.status}`); return; }
+          const items = resp.status === 204 ? [] : (resp.data?._embedded?.events || []);
+          for (const ev of items) {
+            const list = groups.get(ev.entity_id) || [];
+            // Keep only needed fields to avoid memory leaks
+            list.push({
+              id: ev.id,
+              type: ev.type,
+              entity_id: ev.entity_id,
+              created_at: ev.created_at,
+              value_after: ev.value_after,
+              value_before: ev.value_before,
+            });
+            groups.set(ev.entity_id, list);
+          }
+          if (!items.length || items.length < 250) break;
           page++;
-          if (page % 5 === 0) await this.saveCursor(accountId, { ...cursor, page });
         }
         for (const [lid, list] of groups.entries()) {
-          list.sort((a, b) => a.created_at - b.created_at);
+          list.sort((a, b) => (a.created_at - b.created_at) || (a.id - b.id));
           for (const ev of list) {
             try { await this.events.processStatusChanged(accountId, acc.subdomain, acc.baseDomain, token, ev); } catch (e) { this.logger.error(e); }
           }
           const lead = await this.prisma.lead.findUnique({ where: { accountId_externalId: { accountId, externalId: String(lid) } } });
           if (lead) { try { await this.events.createFallbackInterval(lead.id); } catch (e) {} }
         }
+        cursor.phase = 'deleted_events';
+        cursor.page = 1;
+        await this.saveCursor(accountId, cursor);
       }
 
       if (cursor.phase === 'deleted_events') {
-        let page = cursor.page;
+        let page = 1;
         while (true) {
           const resp = await this.crm.request<any>(accountId, acc.subdomain, acc.baseDomain, token, {
             method: 'GET', path: '/api/v4/events',
             params: { 'filter[type]': 'lead_deleted,lead_restored', page, limit: 250 },
           });
           if (resp.status === 401) { await this.fail(accountId, 'Token expired'); return; }
-          if (resp.status !== 200) { await this.fail(accountId, `Deleted: ${resp.status}`); return; }
-          const items = resp.data?._embedded?.events || [];
+          if (resp.status !== 200 && resp.status !== 204) { await this.fail(accountId, `Deleted: ${resp.status}`); return; }
+          const items = resp.status === 204 ? [] : (resp.data?._embedded?.events || []);
           for (const ev of items) {
             try {
               if (ev.type === 'lead_deleted') await this.events.processLeadDeleted(accountId, ev);
@@ -87,8 +101,25 @@ export class BackfillProcessor {
         }
       }
 
-      const leads = await this.prisma.lead.findMany({ where: { accountId } });
-      for (const l of leads) { try { await this.events.createFallbackInterval(l.id); } catch (e) {} }
+      // Bulk create fallback intervals for all leads without any stage history in one query
+      await this.prisma.$executeRaw`
+        INSERT INTO lead_stage_history (lead_id, stage_id, entered_at, exited_at, duration_seconds)
+        SELECT 
+          l.id, 
+          l.current_stage_id, 
+          l.crm_created_at, 
+          l.crm_closed_at,
+          CASE 
+            WHEN l.crm_closed_at IS NOT NULL THEN GREATEST(0, EXTRACT(EPOCH FROM (l.crm_closed_at - l.crm_created_at))::int)
+            ELSE NULL 
+          END
+        FROM leads l
+        WHERE l.account_id = ${accountId}
+          AND l.current_stage_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM lead_stage_history h WHERE h.lead_id = l.id
+          )
+      `;
 
       const overlap = parseInt(process.env.SYNC_OVERLAP_MINUTES || '2', 10) * 60 * 1000;
       await this.prisma.account.update({
@@ -115,12 +146,20 @@ export class BackfillProcessor {
         create: { accountId, externalId: String(p.id), name: p.name, isArchived: false },
         update: { name: p.name, isArchived: false },
       });
-      const stages = p._embedded?.statuses || [];
+      const rawStatuses = p._embedded?.statuses || [];
+      const stages = rawStatuses.filter((s: any) => String(s.id) !== '142' && String(s.id) !== '143');
       for (const s of stages) {
         await this.prisma.stage.upsert({
           where: { pipelineId_externalId: { pipelineId: pipeline.id, externalId: String(s.id) } },
           create: { pipelineId: pipeline.id, externalId: String(s.id), name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
           update: { name: s.name, sortOrder: s.sort ?? s.sort_order ?? 0, isArchived: false },
+        });
+      }
+      const stageIds = stages.map((x: any) => String(x.id));
+      if (stageIds.length > 0) {
+        await this.prisma.stage.updateMany({
+          where: { pipelineId: pipeline.id, NOT: { externalId: { in: stageIds } } },
+          data: { isArchived: true },
         });
       }
     }

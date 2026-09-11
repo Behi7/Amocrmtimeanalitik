@@ -78,6 +78,8 @@ export const userApi = {
   leadHistory: (leadId: number) => api(`/leads/${leadId}/history`),
   searchLeads: (accountId: number, q: string, page = 1, perPage = 50, tagIds: number[] = []) =>
     api(`/accounts/${accountId}/leads/search?q=${encodeURIComponent(q)}&page=${page}&perPage=${perPage}${tagIds.length ? `&tagIds=${tagIds.join(',')}` : ''}`),
+  searchLeads: (accountId: number, q: string, page = 1, perPage = 50, tagIds: number[] = [], status?: string) =>
+    api(`/accounts/${accountId}/leads/search?q=${encodeURIComponent(q)}&page=${page}&perPage=${perPage}${tagIds.length ? `&tagIds=${tagIds.join(',')}` : ''}${status ? `&status=${encodeURIComponent(status)}` : ''}`),
   leadsByStatus: (accountId: number, status: string, page = 1, perPage = 50, tagIds: number[] = []) =>
     api(`/accounts/${accountId}/leads?status=${status}&page=${page}&perPage=${perPage}${tagIds.length ? `&tagIds=${tagIds.join(',')}` : ''}`),
 };

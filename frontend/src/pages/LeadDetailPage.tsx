@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { userApi } from '../api/client';
 import { format } from 'date-fns';
+import { formatDate } from '../lib/utils';
+
 
 export default function LeadDetailPage() {
   const { leadId } = useParams();
@@ -25,6 +27,7 @@ export default function LeadDetailPage() {
             <div><span className="text-slate-500">Статус:</span> {lead.status}</div>
             <div><span className="text-slate-500">Цена:</span> {lead.price ? Number(lead.price).toLocaleString() : '—'}</div>
             <div><span className="text-slate-500">Создана:</span> {format(new Date(lead.crmCreatedAt), 'dd.MM.yyyy HH:mm')}</div>
+            <div><span className="text-slate-500">Создана:</span> {formatDate(lead.crmCreatedAt, 'dd.MM.yyyy HH:mm')}</div>
           </div>
           {lead.leadTags?.length > 0 && (
             <div className="mt-3 flex gap-1 flex-wrap">
@@ -52,6 +55,8 @@ export default function LeadDetailPage() {
                   <td className="p-2">{h.stage_name}</td>
                   <td className="p-2">{format(new Date(h.entered_at), 'dd.MM.yyyy HH:mm')}</td>
                   <td className="p-2">{h.exited_at ? format(new Date(h.exited_at), 'dd.MM.yyyy HH:mm') : 'текущий'}</td>
+                  <td className="p-2">{formatDate(h.entered_at, 'dd.MM.yyyy HH:mm')}</td>
+                  <td className="p-2">{h.exited_at ? formatDate(h.exited_at, 'dd.MM.yyyy HH:mm') : 'текущий'}</td>
                   <td className="p-2">{h.duration_seconds != null ? `${Math.floor(h.duration_seconds / 86400)}д ${Math.floor((h.duration_seconds % 86400) / 3600)}ч ${Math.floor((h.duration_seconds % 3600) / 60)}м` : '—'}</td>
                 </tr>
               ))}
@@ -77,6 +82,7 @@ export default function LeadDetailPage() {
                   {skips.map((s: any, i: number) => (
                     <tr key={i} className="border-t">
                       <td className="p-2">{format(new Date(s.transition_at), 'dd.MM.yyyy HH:mm')}</td>
+                      <td className="p-2">{formatDate(s.transition_at, 'dd.MM.yyyy HH:mm')}</td>
                       <td className="p-2">{s.from_stage_name}</td>
                       <td className="p-2">{s.to_stage_name}</td>
                       <td className="p-2 font-medium">{s.skipped_stage_name}</td>

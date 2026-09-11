@@ -37,6 +37,16 @@ export class CrmConnectorService {
           await new Promise(r => setTimeout(r, wait));
           continue;
         }
+        if ([502, 503, 504].includes(resp.status)) {
+          this.logger.warn(`amoCRM transient gateway error ${resp.status} on attempt ${attempt + 1}/${retries}, retrying...`);
+          const wait = Math.pow(2, attempt) * 1000;
+          await new Promise(r => setTimeout(r, wait));
+          continue;
+        }
+        if (resp.status === 500) {
+          this.logger.error(`amoCRM internal server error 500 on ${req.method} ${url}: ${JSON.stringify(resp.data)}`);
+          return resp as AmoResponse<T>;
+        }
         return resp as AmoResponse<T>;
       } catch (e: any) {
         lastErr = e;
